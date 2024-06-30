@@ -1,6 +1,6 @@
 # System sterowania grami za pomocą komend głosowych.
 
-Celem projektu jest stworzenie systemu, który pozwala na sterowanie grami za pomocą komend głosowych. Działanie systemu polega na rozpoznawaniu komend głosowych, a następnie mapowaniu ich na odpowiednie klawisze klawiatury. Na przykład, jeśli użytkownik powie *skok*, to system powinien wysłać do gry sygnał równoważny z naciśnięciem klawisza *spacja*.
+Celem projektu jest stworzenie systemu, który pozwala na sterowanie grami za pomocą komend głosowych. Działanie systemu polega na rozpoznawaniu komend głosowych, a następnie mapowaniu ich na odpowiednie klawisze klawiatury. Na przykład, jeśli użytkownik wypowie słowo *skok*, to system powinien wysłać do gry sygnał równoważny z naciśnięciem klawisza *spacja*.
 
 ## Źródła
 Wykrywanie wcześniej przygotowanych komend:\
