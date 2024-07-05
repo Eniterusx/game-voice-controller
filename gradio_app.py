@@ -19,9 +19,9 @@ class Model:
         self.model.load_state_dict(torch.load("model.pth", map_location=self.device))       
 
 def classify():
+    #TODO: Implement the forward pass
     pass 
 
-# create a gradio interface that accepts audio input as microphone or wav file and returns the predicted class
 interface = gr.Interface(
     fn=classify,
     inputs=gr.Audio(),
