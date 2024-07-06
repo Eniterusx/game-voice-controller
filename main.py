@@ -38,6 +38,7 @@ class Trainer:
         args = parser.parse_args()
         self.__dict__.update(vars(args))
         self.device = torch.device("cuda:%d" % self.gpu if torch.cuda.is_available() else "cpu")
+        os.makedirs(self.output, exist_ok=True)
         self._load_data()
         self._load_model()
 
@@ -63,7 +64,7 @@ class Trainer:
         # train
         for epoch in range(total_epoch):
             self.model.train()
-            
+
             for sample in tqdm(self.train_loader, desc="epoch %d, iters" % (epoch + 1)):
                 # lr cos schedule
                 iterations += 1
