@@ -34,6 +34,7 @@ class Trainer:
         )
         parser.add_argument("--gpu", default=0, help="gpu device id", type=int)
         parser.add_argument("--download", help="download data", action="store_true")
+        parser.add_argument("--output", help="output folder", default="output", type=str)
         args = parser.parse_args()
         self.__dict__.update(vars(args))
         self.device = torch.device("cuda:%d" % self.gpu if torch.cuda.is_available() else "cpu")
@@ -47,7 +48,7 @@ class Trainer:
         Trains the model and presents the train/test progress.
         """
         # train hyperparameters
-        total_epoch = 2
+        total_epoch = 30
         warmup_epoch = 5
         init_lr = 1e-1
         lr_lower_limit = 0
@@ -63,8 +64,6 @@ class Trainer:
         for epoch in range(total_epoch):
             self.model.train()
             
-            valid_acc = self.Test(self.valid_dataset, self.valid_loader, augment=True)
-
             for sample in tqdm(self.train_loader, desc="epoch %d, iters" % (epoch + 1)):
                 # lr cos schedule
                 iterations += 1
@@ -98,7 +97,7 @@ class Trainer:
                 print("valid acc: %.3f" % (valid_acc))
                 if valid_acc > best_acc:
                     best_acc = valid_acc
-                    torch.save(self.model.state_dict(), "model.pth")
+                    torch.save(self.model.state_dict(), path.join(self.output, "model.pth"))
                     print("model saved...")
 
         test_acc = self.Test(self.test_dataset, self.test_loader, augment=False)  # official testset
@@ -121,11 +120,8 @@ class Trainer:
         num_testdata = float(len(dataset))
         for inputs, labels in loader:
             inputs = inputs.to(self.device)
-            print(inputs.shape)
             labels = labels.to(self.device)
             inputs = self.preprocess_test(inputs, labels=labels, is_train=False, augment=augment)
-            print(inputs.shape)
-            exit()
             outputs = self.model(inputs)
             prediction = torch.argmax(outputs, dim=-1)
             true_count += torch.sum(prediction == labels).detach().cpu().numpy()
