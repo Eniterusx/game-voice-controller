@@ -8,7 +8,7 @@ import shutil
 import requests
 import tarfile
 from pathlib import Path
-
+from tqdm import tqdm
 
 import numpy as np
 import torch
@@ -252,62 +252,50 @@ def make_empty_audio(loc, num):
         torchaudio.save(path, zeros, SR)
 
 
-def make_22class_dataset(base, target):
-    os.mkdir(target)
-    os.mkdir(os.path.join(target, "_unknown_"))
-    class20 = ["down", "go", "left", "no", "off", "on", "right", "stop", "up", "yes",
-               "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"]
-    
-    for clsdir in glob(os.path.join(base, "*")):
-        class_name = os.path.basename(clsdir)
-        if class_name in class20:
-            target_dir = os.path.join(target, class_name)
-            shutil.copytree(clsdir, target_dir)
-        else:
-            for file_path in glob(os.path.join(clsdir, "*")):
-                filename = os.path.basename(file_path)
-                target_dir = os.path.join(target, "_unknown_")
-                os.makedirs(target_dir, exist_ok=True)
-                target_file = os.path.join(target_dir, class_name + "_" + filename)
-                shutil.copy(file_path, target_file)
-
 def split_data(base, target, valid_list, test_list):
     with open(valid_list, "r") as f:
         valid_names = [item.rstrip() for item in f.readlines()]
     with open(test_list, "r") as f:
         test_names = [item.rstrip() for item in f.readlines()]
-
+    valid_names = [Path(x) for x in valid_names] # the amount of patches needed to make this run on windows is surreal
+    test_names = [Path(x) for x in test_names]
+    class20 = ["down", "go", "left", "no", "off", "on", "right", "stop", "up", "yes",
+                "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"]
+    
     trg_base_dirs = [
         os.path.join(target, "train"),
         os.path.join(target, "valid"),
         os.path.join(target, "test"),
     ]
-    for item in trg_base_dirs:
-        if not os.path.isdir(item):
-            os.mkdir(item)
 
-    for root, _, files in os.walk(base):
+    for item in trg_base_dirs:
+        os.makedirs(item + "/_unknown_", exist_ok=True)
+        for class_ in class20:
+            os.makedirs(item + "/" + class_, exist_ok=True)
+
+    folder_count = sum(os.path.isdir(os.path.join(base, d)) for d in os.listdir(base))
+    for root, _, files in tqdm(os.walk(base), leave=False, total=folder_count):
         for file_name in files:
             if not file_name.endswith(".wav"):
                 continue
-        
             if "_background_noise_" in os.path.join(root, file_name):
                 continue
-
             class_name = os.path.basename(root)
-            for item in trg_base_dirs:
-                if not os.path.isdir(os.path.join(item, class_name)):
-                    os.mkdir(os.path.join(item, class_name))
             org_file_name = os.path.join(root, file_name)
             trg_file_name = os.path.join(class_name, file_name)
-            if trg_file_name in valid_names:
+            if Path(trg_file_name) in valid_names:
                 target_dir = trg_base_dirs[1]
-            elif trg_file_name in test_names:
+            elif Path(trg_file_name) in test_names:
                 target_dir = trg_base_dirs[-1]
             else:
                 target_dir = trg_base_dirs[0]
-            target_path = os.path.join(target_dir, trg_file_name)
-            shutil.copy(org_file_name, target_path)
+            if class_name in class20:
+                target_path = os.path.join(target_dir, class_name, file_name)
+                shutil.copy(org_file_name, target_path)
+            else:
+                target_path = os.path.join(target_dir, "_unknown_")
+                target_path = os.path.join(target_path, class_name + "_" + file_name)
+                shutil.copy(org_file_name, target_path)
 
 
 def SplitDataset(loc):
@@ -323,8 +311,13 @@ def SplitDataset(loc):
 
     sample_per_cls = sample_per_cls_v1 if "v0.01" in loc else sample_per_cls_v2
     for idx, split_name in enumerate(["train", "valid", "test"]):
-        base = Path(target_loc) / split_name
-        target = Path(loc) / f"{split_name}_22class"
-        make_22class_dataset(base, target)
-        loc_ = Path(loc) / f"{split_name}_22class" / "_silence_"
-        make_empty_audio(loc_, sample_per_cls[idx])
+        target_path = Path(target_loc) / split_name / "_silence_"
+        make_empty_audio(target_path, sample_per_cls[idx])
+
+    os.makedirs(target_loc + "/_background_noise_", exist_ok=True)
+    noise_loc = Path(loc) / "_background_noise_"
+    target_path = Path(target_loc) / "_background_noise_"
+    for file_name in os.listdir(noise_loc):
+        if not file_name.endswith(".wav"):
+            continue
+        shutil.copy(noise_loc / file_name, target_path / file_name)

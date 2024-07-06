@@ -47,7 +47,7 @@ class Trainer:
         Trains the model and presents the train/test progress.
         """
         # train hyperparameters
-        total_epoch = 200
+        total_epoch = 2
         warmup_epoch = 5
         init_lr = 1e-1
         lr_lower_limit = 0
@@ -58,9 +58,13 @@ class Trainer:
         total_iter = len(self.train_loader) * total_epoch
         iterations = 0
 
+        best_acc = 0.0
         # train
         for epoch in range(total_epoch):
             self.model.train()
+            
+            valid_acc = self.Test(self.valid_dataset, self.valid_loader, augment=True)
+
             for sample in tqdm(self.train_loader, desc="epoch %d, iters" % (epoch + 1)):
                 # lr cos schedule
                 iterations += 1
@@ -92,6 +96,10 @@ class Trainer:
                 self.model.eval()
                 valid_acc = self.Test(self.valid_dataset, self.valid_loader, augment=True)
                 print("valid acc: %.3f" % (valid_acc))
+                if valid_acc > best_acc:
+                    best_acc = valid_acc
+                    torch.save(self.model.state_dict(), "model.pth")
+                    print("model saved...")
 
         test_acc = self.Test(self.test_dataset, self.test_loader, augment=False)  # official testset
         print("test acc: %.3f" % (test_acc))
@@ -113,8 +121,11 @@ class Trainer:
         num_testdata = float(len(dataset))
         for inputs, labels in loader:
             inputs = inputs.to(self.device)
+            print(inputs.shape)
             labels = labels.to(self.device)
             inputs = self.preprocess_test(inputs, labels=labels, is_train=False, augment=augment)
+            print(inputs.shape)
+            exit()
             outputs = self.model(inputs)
             prediction = torch.argmax(outputs, dim=-1)
             true_count += torch.sum(prediction == labels).detach().cpu().numpy()
@@ -144,9 +155,10 @@ class Trainer:
             SplitDataset(base_dir)
             print("Done...")
 
-        train_dir = Path(base_dir) / "train_22class"
-        valid_dir = Path(base_dir) / "valid_22class"
-        test_dir = Path(base_dir) / "test_22class"
+        base_dir = base_dir + "_split"
+        train_dir = Path(base_dir) / "train"
+        valid_dir = Path(base_dir) / "valid"
+        test_dir = Path(base_dir) / "test"
         noise_dir = Path(base_dir) / "_background_noise_"
 
         transform = transforms.Compose([Padding()])
@@ -162,6 +174,10 @@ class Trainer:
         print(
             "check num of data train/valid/test %d/%d/%d"
             % (len(self.train_dataset), len(self.valid_dataset), len(self.test_dataset))
+        )
+        print(
+            "check noise folder num of data %d"
+            % len(list(noise_dir.glob("*.wav")))
         )
 
         specaugment = self.tau >= 1.5
