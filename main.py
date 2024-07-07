@@ -8,6 +8,9 @@ import shutil
 from glob import glob
 from pathlib import Path
 
+from timeit import default_timer as timer
+import humanize
+
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -34,11 +37,13 @@ class Trainer:
         )
         parser.add_argument("--gpu", default=0, help="gpu device id", type=int)
         parser.add_argument("--download", help="download data", action="store_true")
-        parser.add_argument("--output", help="output folder", default="output", type=str)
+        parser.add_argument("--output", help="output folder", default="models/output", type=str)
+        parser.add_argument("--model_path", help="model path to load", default=None, type=str)
         args = parser.parse_args()
         self.__dict__.update(vars(args))
         self.device = torch.device("cuda:%d" % self.gpu if torch.cuda.is_available() else "cpu")
         os.makedirs(self.output, exist_ok=True)
+        assert self.model_path is None or path.exists(self.model_path), "model path not found"
         self._load_data()
         self._load_model()
 
@@ -49,7 +54,7 @@ class Trainer:
         Trains the model and presents the train/test progress.
         """
         # train hyperparameters
-        total_epoch = 30
+        total_epoch = 50
         warmup_epoch = 5
         init_lr = 1e-1
         lr_lower_limit = 0
@@ -62,6 +67,7 @@ class Trainer:
 
         best_acc = 0.0
         # train
+        timer_ = timer()
         for epoch in range(total_epoch):
             self.model.train()
 
@@ -96,13 +102,17 @@ class Trainer:
                 self.model.eval()
                 valid_acc = self.Test(self.valid_dataset, self.valid_loader, augment=True)
                 print("valid acc: %.3f" % (valid_acc))
+                if (epoch+1) % 5 == 0:
+                    torch.save(self.model.state_dict(), path.join(self.output, "model_%03d.pth" % (epoch+1)))
+                    print("model saved...")
                 if valid_acc > best_acc:
                     best_acc = valid_acc
-                    torch.save(self.model.state_dict(), path.join(self.output, "model.pth"))
+                    torch.save(self.model.state_dict(), path.join(self.output, "model_best.pth"))
                     print("model saved...")
 
         test_acc = self.Test(self.test_dataset, self.test_loader, augment=False)  # official testset
         print("test acc: %.3f" % (test_acc))
+        print("Total time: %.3f" % (humanize.precisedelta(timer() - timer_)))
         print("End.")
 
     def Test(self, dataset, loader, augment):
@@ -195,6 +205,8 @@ class Trainer:
         """
         print("model: BC-ResNet-%.1f on data v0.0%d" % (self.tau, self.ver))
         self.model = BCResNets(int(self.tau * 8)).to(self.device)
+        if self.model_path:
+            self.model.load_state_dict(torch.load(self.model_path, map_location=self.device))
 
 
 if __name__ == "__main__":
