@@ -8,8 +8,19 @@ Wykrywanie wcześniej przygotowanych komend:\
 Autorzy: Byeonggeun Kim, Simyung Chang, Jinkyu Lee, Dooyong Sung
 
 ## Zbiór danych
-Obecnie pozyskane dane to Google Speech Commands Dataset, aczkolwiek zbiór ten będzie trzeba rozszerzyć o komendy specyficzne dla gier.
+### Google Speech Commands Dataset
 
 Wersja 1: [[Train]](https://storage.googleapis.com/download.tensorflow.org/data/speech_commands_v0.01.tar.gz) [[Test]](https://storage.googleapis.com/download.tensorflow.org/data/speech_commands_test_set_v0.01.tar.gz)
 
 Wersja 2: [[Train]](http://download.tensorflow.org/data/speech_commands_v0.02.tar.gz) [[Test]](http://download.tensorflow.org/data/speech_commands_test_set_v0.02.tar.gz)
+
+## Rezultaty
+#### Przetestowane na zbiorze danych w wersji 2
+| Model (tau) | Procent zbioru danych [średnia liczba komend na klasę] | Dokładność |
+|-|-|-|
+| 3 | 100% [4030 komend] | 97.721% |
+| 3 | 50% [2015 komend] | 97.003% |
+| 3 | 30% [1209 komend] | 95.051% |
+| 3 | 25% [1008 komend] | 96.141% |
+| 2 | TODO | TODO |
+| 6 | TODO | TODO |
