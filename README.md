@@ -15,7 +15,7 @@ Wersja 1: [[Train]](https://storage.googleapis.com/download.tensorflow.org/data/
 Wersja 2: [[Train]](http://download.tensorflow.org/data/speech_commands_v0.02.tar.gz) [[Test]](http://download.tensorflow.org/data/speech_commands_test_set_v0.02.tar.gz)
 
 ## Rezultaty
-#### Przetestowane na zbiorze danych w wersji 2
+#### Zbiór danych Google Speech Commands Dataset v0.02
 | Model (tau) | Procent zbioru danych [średnia liczba komend na klasę] | Dokładność |
 |-|-|-|
 | 3 | 100% [4030 komend] | 97.721% |
@@ -23,4 +23,10 @@ Wersja 2: [[Train]](http://download.tensorflow.org/data/speech_commands_v0.02.ta
 | 3 | 30% [1209 komend] | 95.051% |
 | 3 | 25% [1008 komend] | 96.141% |
 | 2 | TODO | TODO |
-| 6 | TODO | TODO |
+
+#### Własny zbiór danych (10 nagrań na klasę)
+| Model (tau) | Dokładność |
+|-|-|
+| 1.5 | 98.630% |
+| 2 | 98.630% |
+| 3 | 98.630% | 
