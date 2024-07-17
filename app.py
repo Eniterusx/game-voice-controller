@@ -1,18 +1,73 @@
-import time
+import sounddevice as sd
+import threading
 
 import pygetwindow as gw
 import pyautogui as pg
 
+import tkinter as tk
 from tkinter import *
 from tkinter import ttk
 
 from PIL import ImageTk, Image
+from vad import VADModel
 
 available_keys = ["<None>", 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K',
                   'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X',
                   'Y', 'Z', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0'] # Can add more keys if needed
 
-available_commands = ["<None>", "Up", "Down", "Left", "Right", "Stop", "Go", "Jump"] # Placeholder
+available_commands = ["Left", "Right", "Up", "Down", "Go", "Stop", "On",
+                      "Off", "Yes", "No", "Zero", "One", "Two", "Three",
+                      "Four", "Five", "Six", "Seven", "Eight", "Nine"] # Can add more commands if needed
+
+class KeyBindManager:
+    def __init__(self, window):
+        self.keybinds = []
+        self.window = window
+        self.model = VADModel(self._execute_command)
+    
+    def _add_keybind(self, key, command):
+        if not key or not command or key == "<None>":
+            return
+        self.keybinds.append((key, command))
+        print(f"Keybind added: {key} -> {command}")
+
+    def _remove_keybind(self, key, command):
+        if not key or not command or key == "<None>":
+            return
+        if (key, command) in self.keybinds:
+            self.keybinds.remove((key, command))
+            print(f"Keybind removed: {key} -> {command}")
+
+    def _execute_command(self, command):
+        print(f"Voice command detected: {command}")
+        for key, cmd in self.keybinds:
+            if cmd.lower() == command.lower():
+                self._execute_keybind(key, command)
+
+    def _execute_keybind(self, key, command):
+        print(f"Executing keybind: {key} -> {command}")
+        if key == "<None>":
+            return
+        # send a key press event to the selected window
+        try:
+            print(self.window.title)
+            win = gw.getWindowsWithTitle(self.window.title)[0]
+            win.activate()
+            if win.isActive:
+                pg.hotkey(key)
+                print(f"Keybind executed: {key} -> {command}")
+        except IndexError:
+            print(f"Window titled: '{self.window} not found.")
+        except Exception as e:
+            print(f"Error executing keybind for {key}: {e}")
+
+    def vad_listener(self):
+        global start_stop
+        with sd.InputStream(channels=1, samplerate=self.model.sample_rate, dtype='int16', blocksize=self.model.chunk_length, callback=self.model.audio_callback):
+            print("Listening for voice commands...")
+            while start_stop.is_running:
+                sd.sleep(1000)
+        print("Voice command listener stopped.")
 
 
 class SelectWindowMenu:
@@ -56,18 +111,44 @@ class SelectWindowMenu:
         menu = self.menu["menu"]
         menu.delete(0, "end")
         for option in self.options_dict.keys():
-            menu.add_command(label=option, command=lambda value=option: self.variable.set(value))
+            menu.add_command(label=option, command=tk._setit(self.variable, option, self._select_window))
 
     def _bind_dropdown_click(self):
         """Bind the dropdown click event to update the window list."""
         self.menu.bind('<Button-1>', lambda event: self._update_windows())
 
     def _select_window(self, _):
+        if self.variable.get() not in self.options_dict:
+            return
         global selected_window
         selected_window = self.options_dict[self.variable.get()]
+        print(f"Selected window: {selected_window.title}")
+        global key_bind_manager
+        key_bind_manager.window = selected_window
 
 
-class RebindsList:
+class StartStopButton:
+    def __init__(self, master, status):
+        self.master = master
+        self.variable = StringVar(master)
+        self.variable.set(status)
+        self.button = Button(master, textvariable=self.variable, command=self._toggle, width=30)
+        self.button.pack(pady=10)
+        self.is_running = False
+
+    def _toggle(self):
+        if self.is_running:
+            self.variable.set("Start")
+            self.is_running = False
+        else:
+            self.variable.set("Stop")
+            self.is_running = True
+            global selected_window
+            global key_bind_manager
+            threading.Thread(target=key_bind_manager.vad_listener, daemon=True).start()
+
+
+class RebindsListGUI:
     """A list of key rebinds."""
     def __init__(self, master, status):
         self.master = master
@@ -83,7 +164,7 @@ class RebindsList:
         self._config_canvas()
 
         self.inner_frame.bind("<Configure>", self.on_frame_configure)
-        self.rebinds = []
+        self.rebind_guis = []
         self.add_rebind(3)
 
     def on_frame_configure(self, event=None):
@@ -121,7 +202,6 @@ class RebindsList:
 
     def _create_divider(self, master):
         divider = ttk.Separator(master, orient='horizontal')
-        # Assuming master's width is known or can be obtained
         divider.pack(fill='x', pady=(0, 10))
         return divider
     
@@ -151,19 +231,21 @@ class RebindsList:
 
     def add_rebind(self, n=1):
         for _ in range(n):
-            rebind = KeyRebind(master=self.inner_frame)
-            self.rebinds.append(rebind)
+            rebind = KeyRebindGUI(master=self.inner_frame)
+            self.rebind_guis.append(rebind)
 
     def remove_rebind(self):
-        if self.rebinds:
-            rebind = self.rebinds.pop()
-            rebind.frame.destroy()
+        if self.rebind_guis:
+            self.rebind_guis[-1]._destroy()
+            self.rebind_guis.pop()
 
 
-class KeyRebind:
+class KeyRebindGUI:
     """A key rebind entry."""
     def __init__(self, master):
         self.master = master
+        self.key = None
+        self.command = None
         self.frame = self._create_frame(master)
 
     def _create_frame(self, master):
@@ -173,27 +255,46 @@ class KeyRebind:
         command_label = Label(frame, text="Command:")
         command_label.pack(side=LEFT)
 
-        command_dropdown = RebindDropdown(frame, available_commands[0], *available_commands)
+        command_dropdown = RebindDropdown(frame, available_commands[0], self._set_command, *available_commands)
         command_dropdown.menu.pack(side=LEFT)
 
         key_label = Label(frame, text="Key:")
         key_label.pack(side=LEFT, padx=(15, 0))
 
-        key_dropdown = RebindDropdown(frame, available_keys[0], *available_keys)
+        key_dropdown = RebindDropdown(frame, available_keys[0], self._set_key, *available_keys)
         key_dropdown.menu.pack(side=LEFT)
 
         frame.pack()
 
         return frame
+    
+    def _destroy(self):
+        global key_bind_manager
+        key_bind_manager._remove_keybind(self.key, self.command)
+        self.frame.destroy()
+    
+    def _set_key(self, key):
+        self._set_rebind(key, self.command)
+        self.key = key
+
+    def _set_command(self, command):
+        self._set_rebind(self.key, command)
+        self.command = command
+    
+    def _set_rebind(self, key, command):
+        global key_bind_manager
+        key_bind_manager._remove_keybind(self.key, self.command)
+        key_bind_manager._add_keybind(key, command)
 
 class RebindDropdown:
     """A dropdown menu for selecting rebind options."""
-    def __init__(self, master, status, *options):
+    def __init__(self, master, status, callback, *options):
         self.master = master
         self.variable = StringVar(master)
         self.variable.set(status)
         self.img = self._get_icon("resources/dropdown.png")
         self.options = options
+        self.callback = callback
         self.menu = self._configure_menu(master)
 
     def _get_icon(self, path):
@@ -205,15 +306,18 @@ class RebindDropdown:
     def _configure_menu(self, master):
         menu = OptionMenu(master, self.variable, *self.options, command=self._save_rebind)
         menu.config(indicatoron=0, image=self.img, compound=RIGHT, width=70, height=20)
+        self._save_rebind(None)
         return menu
     
     def _save_rebind(self, _):
-        #TODO: handle the rebinds
-        pass
+        self.callback(self.variable.get())
+
+selected_window = None
+key_bind_manager = KeyBindManager(None)
 
 root = Tk()
 root.title("Voice commands to keybinds")
-root.geometry("400x500")
+root.geometry("400x550")
 root.resizable(False, False)
 
 icon = Image.open("resources/blahaj.png")
@@ -221,6 +325,7 @@ icon = ImageTk.PhotoImage(icon)
 root.iconphoto(False, icon)
 
 window = SelectWindowMenu(master=root, status="Select the game window")
-key_rebinds = RebindsList(master=root, status="Configure rebinds")
+start_stop = StartStopButton(master=root, status="Start")
+key_rebinds = RebindsListGUI(master=root, status="Configure rebinds")
 
 root.mainloop()
