@@ -171,6 +171,19 @@ class BCResNets(nn.Module):
             nn.AdaptiveAvgPool2d((1, 1)),
             nn.Conv2d(self.c[-1], self.num_classes, 1),
         )
+    
+    def rebuild_classifier(self, num_classes):
+        self.num_classes = num_classes
+        self.classifier = nn.Sequential(
+            nn.Conv2d(
+                self.c[-2], self.c[-2], (5, 5), bias=False, groups=self.c[-2], padding=(0, 2)
+            ),
+            nn.Conv2d(self.c[-2], self.c[-1], 1, bias=False),
+            nn.BatchNorm2d(self.c[-1]),
+            nn.ReLU(True),
+            nn.AdaptiveAvgPool2d((1, 1)),
+            nn.Conv2d(self.c[-1], self.num_classes, 1),
+        )
 
     def forward(self, x):
         x = self.cnn_head(x)

@@ -10,6 +10,7 @@ import tarfile
 from pathlib import Path
 from tqdm import tqdm
 
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torchaudio
@@ -45,52 +46,179 @@ sample_per_cls_v1 = [1854, 258, 257]
 sample_per_cls_v2 = [3077, 371, 408]
 SR = 16000
 
+def SplitCommands(seed=42):
+    '''
+    Used in finetuning to split the commands into two dictionaries,
+    one for pretraining and one for finetuning.
+    '''
+    random.seed(seed)
 
-def ScanAudioFiles(root_dir, ver):
-    sample_per_cls = sample_per_cls_v1 if ver == 1 else sample_per_cls_v2
-    audio_paths, labels = [], []
-    for path, _, files in sorted(os.walk(root_dir, followlinks=True)):
-        random.shuffle(files)
-        for idx, filename in enumerate(files):
-            if not filename.endswith(".wav"):
-                continue
-            dataset, class_name = path.split("\\")[-2:]
-            if class_name in ("_unknown_", "_silence_"):  # balancing
-                if "train" in dataset and idx == sample_per_cls[0]:
-                    break
-                if "valid" in dataset and idx == sample_per_cls[1]:
-                    break
-                if "test" in dataset and idx == sample_per_cls[2]:
-                    break
-            audio_paths.append(os.path.join(path, filename))
-            labels.append(label_dict[class_name])
-    return audio_paths, labels
+    pretrain_commands = 15
+    commands = [x for x in label_dict.keys() if x not in ("_silence_", "_unknown_")]
+    random.shuffle(commands)
 
+    pretrain_dict = {command: i+2 for i, command in enumerate(commands[:pretrain_commands])}
+    pretrain_dict["_silence_"] = 0
+    pretrain_dict["_unknown_"] = 1
+    pretrain_dict = dict(sorted(pretrain_dict.items(), key=lambda item: item[1]))
+
+    finetune_dict = {command: i+2 for i, command in enumerate(commands[pretrain_commands:])}
+    finetune_dict["_silence_"] = 0
+    finetune_dict["_unknown_"] = 1
+    finetune_dict = dict(sorted(finetune_dict.items(), key=lambda item: item[1]))
+
+    print("pretrain_dict:\t", pretrain_dict)
+    print("finetune_dict:\t", finetune_dict)
+
+    return pretrain_dict, finetune_dict
+
+
+def GetAudioPaths(root_dir, command, seed=42, percentage=1.0):
+    '''
+    Get the audio paths for a specific command
+    '''
+    random.seed(seed)
+
+    audio_paths = []
+
+    files_per_command = int(1500 * percentage) # 1500 files per command by default
+
+    files = [file for file in os.listdir(os.path.join(root_dir, command)) if file.endswith(".wav")]
+    random.shuffle(files)
+    for file in files[:files_per_command]:
+        audio_paths.append(os.path.join(root_dir, command, file))
+    
+    return audio_paths
+
+
+def SplitDataset(root_dir, seed=42, percentage=1.0):
+    '''
+    Split the dataset into training, validation and test
+    '''
+    random.seed(seed)
+
+    train_files = int(1500 * percentage * 0.7)
+    valid_files = int(1500 * percentage * 0.15)
+    test_files = int(1500 * percentage * 0.15)
+
+    # round up or down to make sure the total amount of files is equal to the desired amount
+    while train_files + valid_files + test_files > int(1500 * percentage):
+        train_files -= 1
+    while train_files + valid_files + test_files < int(1500 * percentage):
+        train_files += 1
+
+    labels_dict = {command: i for i, command in enumerate(label_dict.keys())}
+    train_data, valid_data, test_data = [], [], []
+
+    for command in os.listdir(root_dir):
+        if not os.path.isdir(os.path.join(root_dir, command)):
+            continue
+        if command == "_background_noise_":
+            continue
+        audio_paths = GetAudioPaths(root_dir, command, seed, percentage)
+        if command not in labels_dict.keys():
+            command = "_unknown_"
+        labels = [labels_dict[command]] * len(audio_paths)
+        train_data += zip(audio_paths[:train_files], labels[:train_files])
+        valid_data += zip(audio_paths[train_files:train_files + valid_files], labels[train_files:train_files + valid_files])
+        test_data += zip(audio_paths[train_files + valid_files:], labels[train_files + valid_files:])
+    
+    # add silence using the same amount of files as the other commands
+    # use make_empty_audio to create the silence file
+    make_empty_audio(root_dir)
+    for _ in range(train_files):
+        train_data.append((os.path.join(root_dir, "_silence_.wav"), 0))
+    for _ in range(valid_files):
+        valid_data.append((os.path.join(root_dir, "_silence_.wav"), 0))
+    for _ in range(test_files):
+        test_data.append((os.path.join(root_dir, "_silence_.wav"), 0))
+    data = {"train": train_data, "valid": valid_data, "test": test_data}
+    return data, labels_dict
+
+
+def FineTuneSplit(root_dir, seed=42, percentage=1.0):
+    '''
+    Split the dataset into pretraining and finetuning data
+    '''
+    random.seed(seed)
+
+    train_files = int(1500 * percentage * 0.7)
+    valid_files = int(1500 * percentage * 0.15)
+    test_files = int(1500 * percentage * 0.15)
+
+    # round up or down to make sure the total amount of files is equal to the desired amount
+    while train_files + valid_files + test_files > int(1500 * percentage):
+        train_files -= 1
+    while train_files + valid_files + test_files < int(1500 * percentage):
+        train_files += 1
+
+    pretrain_dict, finetune_dict = SplitCommands(seed)
+    pretrain_train, pretrain_eval, pretrain_test = [], [], []
+    finetune_train, finetune_eval, finetune_test = [], [], []
+
+    for command in os.listdir(root_dir):
+        if not os.path.isdir(os.path.join(root_dir, command)):
+            continue
+        if command == "_background_noise_":
+            continue
+        audio_paths = GetAudioPaths(root_dir, command, seed, percentage)
+        if command in pretrain_dict:
+            labels = [pretrain_dict[command]] * len(audio_paths)
+            pretrain_train += zip(audio_paths[:train_files], labels[:train_files])
+            pretrain_eval += zip(audio_paths[train_files:train_files + valid_files], labels[train_files:train_files + valid_files])
+            pretrain_test += zip(audio_paths[train_files + valid_files:], labels[train_files + valid_files:])
+        elif command in finetune_dict:
+            labels = [finetune_dict[command]] * len(audio_paths)
+            finetune_train += zip(audio_paths[:train_files], labels[:train_files])
+            finetune_eval += zip(audio_paths[train_files:train_files + valid_files], labels[train_files:train_files + valid_files])
+            finetune_test += zip(audio_paths[train_files + valid_files:], labels[train_files + valid_files:])
+        else:
+            labels = [1] * len(audio_paths)
+            pretrain_train += zip(audio_paths[:train_files], labels[:train_files])
+            pretrain_eval += zip(audio_paths[train_files:train_files + valid_files], labels[train_files:train_files + valid_files])
+            pretrain_test += zip(audio_paths[train_files + valid_files:], labels[train_files + valid_files:])
+            finetune_train += zip(audio_paths[:train_files], labels[:train_files])
+            finetune_eval += zip(audio_paths[train_files:train_files + valid_files], labels[train_files:train_files + valid_files])
+            finetune_test += zip(audio_paths[train_files + valid_files:], labels[train_files + valid_files:])
+    
+    # add silence using the same amount of files as the other commands
+    # use make_empty_audio to create the silence file
+    make_empty_audio(root_dir)
+    for _ in range(train_files):
+        pretrain_train.append((os.path.join(root_dir, "_silence_.wav"), 0))
+        finetune_train.append((os.path.join(root_dir, "_silence_.wav"), 0))
+    for _ in range(valid_files):
+        pretrain_eval.append((os.path.join(root_dir, "_silence_.wav"), 0))
+        finetune_eval.append((os.path.join(root_dir, "_silence_.wav"), 0))
+    for _ in range(test_files):
+        pretrain_test.append((os.path.join(root_dir, "_silence_.wav"), 0))
+        finetune_test.append((os.path.join(root_dir, "_silence_.wav"), 0))
+    pretrain_data = {"train": pretrain_train, "valid": pretrain_eval, "test": pretrain_test}
+    finetune_data = {"train": finetune_train, "valid": finetune_eval, "test": finetune_test}
+    return pretrain_data, pretrain_dict, finetune_data, finetune_dict
 
 class SpeechCommand(Dataset):
-    """GSC"""
-
-    def __init__(self, root_dir, ver, transform=None):
+    def __init__(self, data, transform=None):
         self.transform = transform
-        self.data_list, self.labels = ScanAudioFiles(root_dir, ver)
-
+        self.data_list, self.labels = zip(*data)
 
     def __len__(self):
         return len(self.labels)
 
-
     def __getitem__(self, idx):
         audio_path = self.data_list[idx]
-        sample, _ = torchaudio.load(audio_path)
+        sample, _ = torchaudio.load(os.path.abspath(audio_path))
         if self.transform:
             sample = self.transform(sample)
         label = self.labels[idx]
         return sample, label
 
-
 def spec_augment(
     x, frequency_masking_para=20, time_masking_para=20, frequency_mask_num=2, time_mask_num=2
 ):
+    '''
+    Apply SpecAugment to the input tensor
+    '''
     lenF, lenT = x.shape[1:3]
     # Frequency masking
     for _ in range(frequency_mask_num):
@@ -243,81 +371,40 @@ def DownloadDataset(loc, url):
         tar.extractall(loc)
 
 
-def make_empty_audio(loc, num):
-    if not os.path.isdir(loc):
-        os.mkdir(loc)
-    for i in range(num):
-        path = os.path.join(loc, "%s.wav" % str(i))
-        zeros = torch.zeros([1, SR])  # 1 sec long.
-        torchaudio.save(path, zeros, SR)
+def make_empty_audio(loc):
+    '''
+    Create an empty audio file for _silence_
+    '''
+    if not os.path.isfile(loc / "_silence_.wav"):
+        zeros = torch.zeros([1, SR])
+        torchaudio.save(loc / "_silence_.wav", zeros, SR)
 
+def GenerateConfusionMatrix(y_true, y_pred, num_classes):
+    confusion_matrix = np.zeros((num_classes, num_classes))
+    for i in range(len(y_true)):
+        confusion_matrix[y_true[i], y_pred[i]] += 1
+    return confusion_matrix
 
-def split_data(base, target, valid_list, test_list):
-    with open(valid_list, "r") as f:
-        valid_names = [item.rstrip() for item in f.readlines()]
-    with open(test_list, "r") as f:
-        test_names = [item.rstrip() for item in f.readlines()]
-    valid_names = [Path(x) for x in valid_names] # the amount of patches needed to make this run on windows is surreal
-    test_names = [Path(x) for x in test_names]
-    class20 = ["down", "go", "left", "no", "off", "on", "right", "stop", "up", "yes",
-                "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"]
+def VisualizeConfusionMatrix(y_true, y_pred, class_dict=label_dict, save_path=None):
+    labels = class_dict.keys()
+    confusion_matrix = GenerateConfusionMatrix(y_true, y_pred, len(labels))
     
-    trg_base_dirs = [
-        os.path.join(target, "train"),
-        os.path.join(target, "valid"),
-        os.path.join(target, "test"),
-    ]
+    fig, ax = plt.subplots(figsize=(11, 9))
+    cax = ax.matshow(confusion_matrix, cmap="coolwarm")
+    fig.colorbar(cax)
 
-    for item in trg_base_dirs:
-        os.makedirs(item + "/_unknown_", exist_ok=True)
-        for class_ in class20:
-            os.makedirs(item + "/" + class_, exist_ok=True)
+    tick_positions = range(len(labels))
+    ax.set_xticks(tick_positions)
+    ax.set_yticks(tick_positions)
+    ax.set_xticklabels(list(labels), rotation=90)
+    ax.set_yticklabels(list(labels)) 
 
-    folder_count = sum(os.path.isdir(os.path.join(base, d)) for d in os.listdir(base))
-    for root, _, files in tqdm(os.walk(base), leave=False, total=folder_count):
-        for file_name in files:
-            if not file_name.endswith(".wav"):
-                continue
-            if "_background_noise_" in os.path.join(root, file_name):
-                continue
-            class_name = os.path.basename(root)
-            org_file_name = os.path.join(root, file_name)
-            trg_file_name = os.path.join(class_name, file_name)
-            if Path(trg_file_name) in valid_names:
-                target_dir = trg_base_dirs[1]
-            elif Path(trg_file_name) in test_names:
-                target_dir = trg_base_dirs[-1]
-            else:
-                target_dir = trg_base_dirs[0]
-            if class_name in class20:
-                target_path = os.path.join(target_dir, class_name, file_name)
-                shutil.copy(org_file_name, target_path)
-            else:
-                target_path = os.path.join(target_dir, "_unknown_")
-                target_path = os.path.join(target_path, class_name + "_" + file_name)
-                shutil.copy(org_file_name, target_path)
+    for i in range(len(labels)):
+        for j in range(len(labels)):
+            ax.text(j, i, int(confusion_matrix[i, j]), ha="center", va="center", color="black")
 
+    plt.xlabel("Predicted")
+    plt.ylabel("True")
 
-def SplitDataset(loc):
-    target_loc = "%s_split" % loc
-    if not os.path.isdir(target_loc):
-        os.mkdir(target_loc)
-    split_data(
-        loc,
-        target_loc,
-        os.path.join(loc, "validation_list.txt"),
-        os.path.join(loc, "testing_list.txt"),
-    )
-
-    sample_per_cls = sample_per_cls_v1 if "v0.01" in loc else sample_per_cls_v2
-    for idx, split_name in enumerate(["train", "valid", "test"]):
-        target_path = Path(target_loc) / split_name / "_silence_"
-        make_empty_audio(target_path, sample_per_cls[idx])
-
-    os.makedirs(target_loc + "/_background_noise_", exist_ok=True)
-    noise_loc = Path(loc) / "_background_noise_"
-    target_path = Path(target_loc) / "_background_noise_"
-    for file_name in os.listdir(noise_loc):
-        if not file_name.endswith(".wav"):
-            continue
-        shutil.copy(noise_loc / file_name, target_path / file_name)
+    if save_path:
+        plt.savefig(Path(save_path))
