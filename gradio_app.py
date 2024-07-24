@@ -5,14 +5,12 @@ import torch.nn.functional as F
 from torchvision import models
 
 import gradio as gr
-import os
 import numpy as np
 from torchvision import transforms
 from pathlib import Path
 
 from bcresnet import BCResNets
-from utils import DownloadDataset, Padding, Preprocess, SpeechCommand, SplitDataset
-from main import Trainer
+from utils import Padding, Preprocess
 
 label_dict = {
     0: "_silence_",
@@ -47,7 +45,7 @@ class Model:
         self.gpu = 0
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = BCResNets(int(self.tau * 8)).to(self.device)
-        self.model.load_state_dict(torch.load("model2.pth", map_location=self.device))
+        self.model.load_state_dict(torch.load("model.pth", map_location=self.device))
         self.model.eval()
         self.noise_dir = Path("./data/speech_commands_v0.02_split/_background_noise_")
         self.preprocess = Preprocess(noise_loc=None, device=self.device)
