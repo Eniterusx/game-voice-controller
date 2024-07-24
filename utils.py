@@ -375,6 +375,7 @@ def make_empty_audio(loc):
     '''
     Create an empty audio file for _silence_
     '''
+    loc = Path(loc)
     if not os.path.isfile(loc / "_silence_.wav"):
         zeros = torch.zeros([1, SR])
         torchaudio.save(loc / "_silence_.wav", zeros, SR)
