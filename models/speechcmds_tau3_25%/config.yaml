@@ -1,0 +1,28 @@
+# percentage of data to use
+percentage: 25
+
+# model version
+tau: 3
+# Google Speech Command dataset version
+ver: 2
+# gpu device id
+gpu: 0
+
+# output folder
+output: 'models/speechcmds_tau3_25%'
+# use fine_tuning version
+fine_tune: False
+# can be omitted if fine_tune is False
+fine_tune_epochs: 0
+
+# model parameters
+epochs: 150
+init_lr: 0.1
+lr_lower_limit: 0
+warmup_epoch: 5
+batch_size: 100
+# optimizer parameters
+weight_decay: 0.001
+momentum: 0.9
+
+seed: 42
