@@ -6,6 +6,23 @@ Celem projektu jest stworzenie systemu, który pozwala na sterowanie grami za po
 [Broadcasted Residual Learning for Efficient Keyword Spotting](https://arxiv.org/pdf/2106.04140v4)\
 Autorzy: Byeonggeun Kim, Simyung Chang, Jinkyu Lee, Dooyong Sung
 
+## Instalacja
+Sklonuj repozytorium i wejdź do katalogu z projektem:
+```bash
+git clone https://github.com/Eniterusx/game-voice-controller.git
+cd game-voice-controller
+```
+
+Stwórz wirtualne środowisko conda i zainstaluj wymagane biblioteki:
+```bash
+conda create -n bcresnet python=3.8
+cond activate bcresnet
+conda install pytorch==1.7.1 torchvision==0.8.2 torchaudio==0.7.2 -c pytorch
+conda install tqdm, requests
+pip install soundfile
+```
+Zbiór danych można pobrać dodając flagę `--download` podczas uruchamiania skryptu `main.py`.
+
 ## Zbiór danych
 ### Google Speech Commands Dataset
 
