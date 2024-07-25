@@ -10,7 +10,6 @@ from pathlib import Path
 
 from timeit import default_timer as timer
 import yaml
-import humanize
 
 import numpy as np
 import torch
@@ -114,19 +113,18 @@ class Trainer:
                 print("valid acc: %.3f" % (valid_acc))
                 if valid_acc >= best_acc:
                     best_acc = valid_acc
-                    self.best_model = self.model.state_dict()
                     print(f"New best accuracy: {best_acc:.3f}")
 
         test_acc = self.Test(self.test_dataset, self.test_loader, augment=False, visualize=True)  # official testset
         print("test acc: %.3f" % (test_acc))
-        print(f"Total time: {humanize.naturaldelta(timer() - timer_)}")
+        print(f"Total time: {timer() - timer_}")
         print("Best acc: %.3f" % best_acc)
         # save best acc as a txt file
         with open(path.join(self.output, "best_acc.txt"), "w") as f:
             f.write(f"Best acc: {best_acc:.3f}\n")
             f.write(f"Test acc: {test_acc:.3f}\n")
             f.write(f"Train commands: {list(self.label_dict.keys())}\n")
-        torch.save(self.best_model, path.join(self.output, "model_best.pth"))
+        torch.save(self.model.state_dict(), path.join(self.output, "model_best.pth"))
         if self.fine_tune:
             self.FineTune()
         print("End.")
@@ -185,24 +183,20 @@ class Trainer:
                 self.model.eval()
                 valid_acc = self.Test(self.finetune_valid_dataset, self.finetune_valid_loader, augment=True)
                 print("valid acc: %.3f" % (valid_acc))
-                if (epoch+1) % 20 == 0:
-                    torch.save(self.model.state_dict(), path.join(self.output, "model_finetune_%03d.pth" % (epoch+1)))
-                    print("model saved...")
                 if valid_acc >= best_acc:
                     best_acc = valid_acc
-                    self.best_model = self.model.state_dict()
                     print(f"New best accuracy: {best_acc:.3f}")
     
         test_acc = self.Test(self.finetune_test_dataset, self.finetune_test_loader, augment=False, visualize=True, finetune=True)  # official testset
         print("test acc: %.3f" % (test_acc))
-        print(f"Total finetune time: {humanize.naturaldelta(timer() - timer_)}")
+        print(f"Total finetune time: {timer() - timer_}")
         print("Best acc: %.3f" % best_acc)
         # save best acc as a txt file
         with open(path.join(self.output, "best_acc_finetune.txt"), "w") as f:
             f.write(f"Best acc: {best_acc:.3f}\n")
             f.write(f"Test acc: {test_acc:.3f}\n")
             f.write(f"Fine tune commands: {list(self.finetune_dict.keys())}\n")
-        torch.save(self.best_model, path.join(self.output, "model_best_finetune.pth"))
+        torch.save(self.model.state_dict(), path.join(self.output, "model_best_finetune.pth"))
         print("End of fine tuning.")
 
     def Test(self, dataset, loader, augment, visualize=False, finetune=False):
@@ -416,10 +410,12 @@ class Trainer:
         # freeze all layers except the last fc layer
         for param in self.model.parameters():
             param.requires_grad = False
-        for param in self.model.classifier.parameters():
-            param.requires_grad = True
+
         # change the last fc layer to have as many output classes as self.finetune_dict
         self.model.rebuild_classifier(len(self.finetune_dict))
+
+        for param in self.model.classifier.parameters():
+            param.requires_grad = True
         self.model = self.model.to(self.device)
 
     def _load_model(self):
