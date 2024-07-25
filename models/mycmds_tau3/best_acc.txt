@@ -1,0 +1,3 @@
+Best acc: 97.222
+Test acc: 94.444
+Train commands: ['_silence_', '_unknown_', 'down', 'go', 'left', 'no', 'off', 'on', 'right', 'stop', 'up', 'yes', 'zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine']
