@@ -48,6 +48,8 @@ class Trainer:
         self.device = torch.device("cuda:%d" % self.gpu if torch.cuda.is_available() else "cpu")
         self._set_hyperparameters()
         os.makedirs(self.output, exist_ok=True)
+        torch.manual_seed(self.seed)
+        np.random.seed(self.seed)
 
         if self.fine_tune:
             self._load_finetune_data()
