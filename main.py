@@ -117,7 +117,7 @@ class Trainer:
                     best_acc = valid_acc
                     print(f"New best accuracy: {best_acc:.3f}")
 
-        test_acc = self.Test(self.test_dataset, self.test_loader, augment=False, visualize=True)  # official testset
+        test_acc, precission, recall, f1_score = self.Test(self.test_dataset, self.test_loader, augment=False, visualize=True, calc_confusion_matrix=True)  # official testset
         print("test acc: %.3f" % (test_acc))
         print(f"Total time: {timer() - timer_}")
         print("Best acc: %.3f" % best_acc)
@@ -125,6 +125,9 @@ class Trainer:
         with open(path.join(self.output, "best_acc.txt"), "w") as f:
             f.write(f"Best acc: {best_acc:.3f}\n")
             f.write(f"Test acc: {test_acc:.3f}\n")
+            f.write(f"Precision: {precission:.3f}\n")
+            f.write(f"Recall: {recall:.3f}\n")
+            f.write(f"F1 score: {f1_score:.3f}\n")
             f.write(f"Train commands: {list(self.label_dict.keys())}\n")
         torch.save(self.model.state_dict(), path.join(self.output, "model_best.pth"))
         if self.fine_tune:
@@ -189,7 +192,7 @@ class Trainer:
                     best_acc = valid_acc
                     print(f"New best accuracy: {best_acc:.3f}")
     
-        test_acc = self.Test(self.finetune_test_dataset, self.finetune_test_loader, augment=False, visualize=True, finetune=True)  # official testset
+        test_acc, precision, recall, f1_score = self.Test(self.finetune_test_dataset, self.finetune_test_loader, augment=False, visualize=True, finetune=True, calc_confusion_matrix=True)  # official testset
         print("test acc: %.3f" % (test_acc))
         print(f"Total finetune time: {timer() - timer_}")
         print("Best acc: %.3f" % best_acc)
@@ -197,11 +200,14 @@ class Trainer:
         with open(path.join(self.output, "best_acc_finetune.txt"), "w") as f:
             f.write(f"Best acc: {best_acc:.3f}\n")
             f.write(f"Test acc: {test_acc:.3f}\n")
+            f.write(f"Precision: {precision:.3f}\n")
+            f.write(f"Recall: {recall:.3f}\n")
+            f.write(f"F1 score: {f1_score:.3f}\n")
             f.write(f"Fine tune commands: {list(self.finetune_dict.keys())}\n")
         torch.save(self.model.state_dict(), path.join(self.output, "model_best_finetune.pth"))
         print("End of fine tuning.")
 
-    def Test(self, dataset, loader, augment, visualize=False, finetune=False):
+    def Test(self, dataset, loader, augment, visualize=False, finetune=False, calc_confusion_matrix=False):
         """
         Tests the model on a given dataset.
 
@@ -219,6 +225,10 @@ class Trainer:
         if visualize:
             predicted_labels = []
             true_labels = []
+        TP = 0
+        TN = 0
+        FP = 0
+        FN = 0
 
         for inputs, labels in loader:
             inputs = inputs.to(self.device)
@@ -227,9 +237,23 @@ class Trainer:
             outputs = self.model(inputs)
             prediction = torch.argmax(outputs, dim=-1)
             true_count += torch.sum(prediction == labels).detach().cpu().numpy()
+            if calc_confusion_matrix:
+                for predict, label in zip(prediction, labels):
+                    if predict == label:
+                        if predict in [0, 1]:
+                            TN += 1
+                        else:
+                            TP += 1
+                    else:
+                        if predict in [0, 1]:
+                            FN += 1
+                        else:
+                            FP += 1
+            
             if visualize:
                 predicted_labels.extend(prediction.detach().cpu().numpy())
                 true_labels.extend(labels.detach().cpu().numpy())
+        
         if visualize:
             if finetune:
                 output = path.join(self.output, "confusion_matrix_finetune.png")
@@ -239,7 +263,15 @@ class Trainer:
                 cmd_dict = self.label_dict
             VisualizeConfusionMatrix(true_labels, predicted_labels, class_dict=cmd_dict, save_path=output)
         acc = true_count / num_testdata * 100.0  # percentage
-        return acc
+        if not calc_confusion_matrix:
+            return acc
+        else:
+            print(f"TP: {TP}, TN: {TN}, FP: {FP}, FN: {FN}")
+            precision = TP / max((TP + FP), 1)
+            recall = TP / max((TP + FN), 1)
+            f1_score = 2 * TP / max((2 * TP + FP + FN), 1)
+            print(f"Precision: {precision:.3f}, Recall: {recall:.3f}, F1 score: {f1_score:.3f}")
+            return acc, precision, recall, f1_score 
 
     def _set_hyperparameters(self):
         if self.config:
