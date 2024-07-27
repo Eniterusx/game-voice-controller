@@ -10,7 +10,6 @@ import tarfile
 from pathlib import Path
 from tqdm import tqdm
 
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torchaudio
@@ -41,7 +40,6 @@ label_dict = {
     "eight": 20,
     "nine": 21,
 }
-print("labels:\t", label_dict)
 sample_per_cls_v1 = [1854, 258, 257]
 sample_per_cls_v2 = [3077, 371, 408]
 SR = 16000
@@ -379,33 +377,3 @@ def make_empty_audio(loc):
     if not os.path.isfile(loc / "_silence_.wav"):
         zeros = torch.zeros([1, SR])
         torchaudio.save(loc / "_silence_.wav", zeros, SR)
-
-def GenerateConfusionMatrix(y_true, y_pred, num_classes):
-    confusion_matrix = np.zeros((num_classes, num_classes))
-    for i in range(len(y_true)):
-        confusion_matrix[y_true[i], y_pred[i]] += 1
-    return confusion_matrix
-
-def VisualizeConfusionMatrix(y_true, y_pred, class_dict=label_dict, save_path=None):
-    labels = class_dict.keys()
-    confusion_matrix = GenerateConfusionMatrix(y_true, y_pred, len(labels))
-    
-    fig, ax = plt.subplots(figsize=(11, 9))
-    cax = ax.matshow(confusion_matrix, cmap="coolwarm")
-    fig.colorbar(cax)
-
-    tick_positions = range(len(labels))
-    ax.set_xticks(tick_positions)
-    ax.set_yticks(tick_positions)
-    ax.set_xticklabels(list(labels), rotation=90)
-    ax.set_yticklabels(list(labels)) 
-
-    for i in range(len(labels)):
-        for j in range(len(labels)):
-            ax.text(j, i, int(confusion_matrix[i, j]), ha="center", va="center", color="black")
-
-    plt.xlabel("Predicted")
-    plt.ylabel("True")
-
-    if save_path:
-        plt.savefig(Path(save_path))

@@ -19,7 +19,8 @@ from torchvision import transforms
 from tqdm import tqdm
 
 from bcresnet import BCResNets
-from utils import DownloadDataset, Padding, Preprocess, SpeechCommand, VisualizeConfusionMatrix, SplitDataset, FineTuneSplit
+from utils import DownloadDataset, Padding, Preprocess, SpeechCommand, SplitDataset, FineTuneSplit
+from graphing_utils import VisualizeConfusionMatrix
 
 class Trainer:
     def __init__(self):
