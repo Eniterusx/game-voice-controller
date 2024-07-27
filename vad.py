@@ -37,7 +37,7 @@ label_dict = {
 }
 
 class Model:
-    def __init__(self, tau=3, model_path="models/speechcmds_tau3/model_best_049.pth"):
+    def __init__(self, tau=3, model_path="model.pth"):
         self.tau = tau
         self.gpu = 0
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -69,7 +69,7 @@ class VADModel:
         self.overlap_duration = 700
         self.vad_aggressiveness = 2
         self.tau = 3
-        self.model_path = "models/speechcmds_tau3/model_best_049.pth"
+        self.model_path = "model.pth"
 
         self.callback = callback
 
