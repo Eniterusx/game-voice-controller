@@ -1,8 +1,7 @@
 import sounddevice as sd
 import threading
-
-import pygetwindow as gw
-import pyautogui as pg
+import time
+import warnings
 
 import tkinter as tk
 from tkinter import *
@@ -10,6 +9,16 @@ from tkinter import ttk
 
 from PIL import ImageTk, Image
 from vad import VADModel
+
+import platform
+
+import pyautogui as pg
+if platform.system() == "Windows":
+    import pygetwindow as gw
+elif platform.system() == "Linux":
+    import pywinctl as gw
+else:
+    raise NotImplementedError("This platform is not supported.")
 
 available_keys = ["<None>", 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K',
                   'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X',
@@ -29,33 +38,39 @@ class KeyBindManager:
         if not key or not command or key == "<None>":
             return
         self.keybinds.append((key, command))
-        print(f"Keybind added: {key} -> {command}")
+        # print(f"Keybind added: {key} -> {command}")
 
     def _remove_keybind(self, key, command):
         if not key or not command or key == "<None>":
             return
         if (key, command) in self.keybinds:
             self.keybinds.remove((key, command))
-            print(f"Keybind removed: {key} -> {command}")
+            # print(f"Keybind removed: {key} -> {command}")
 
     def _execute_command(self, command):
-        print(f"Voice command detected: {command}")
+        # print(f"Voice command detected: {command}")
         for key, cmd in self.keybinds:
             if cmd.lower() == command.lower():
                 self._execute_keybind(key, command)
 
     def _execute_keybind(self, key, command):
-        print(f"Executing keybind: {key} -> {command}")
+        # print(f"Executing keybind: {key} -> {command}")
         if key == "<None>":
             return
         # send a key press event to the selected window
         try:
-            print(self.window.title)
+            # print(self.window.title)
             win = gw.getWindowsWithTitle(self.window.title)[0]
             win.activate()
+            counter = 10
+            while not win.isActive and counter > 0:
+                time.sleep(0.01)
+                counter -= 1
+            if not win.isActive:
+                warnings.warn("WARNING\nCould not activate the window")
             if win.isActive:
-                pg.hotkey(key)
-                print(f"Keybind executed: {key} -> {command}")
+                pg.hotkey(key.lower())
+                # print(f"Keybind executed: {key} -> {command}")
         except IndexError:
             print(f"Window titled: '{self.window} not found.")
         except Exception as e:
@@ -96,7 +111,7 @@ class SelectWindowMenu:
 
     def _get_windows(self):
         """Get a list of windows and return a dictionary of window titles to window objects."""
-        windows = gw.getWindowsWithTitle("")
+        windows = self._get_all_window_names("")
         # remove empty entries
         windows = [window for window in windows if window.title != ""]
         # create a mapping of window titles to window objects
@@ -104,6 +119,12 @@ class SelectWindowMenu:
         # strip non-ascii characters and limit to 36 characters, also enumerate the titles
         windows = {f"{i+1}. {''.join([char for char in title if ord(char) <= 0xFFFF])}"[:36]: window for i, (title, window) in enumerate(windows.items())}
         return windows
+    
+    def _get_all_window_names(self, name):
+        if platform.system() == "Windows":
+            return gw.getWindowsWithTitle(name)
+        elif platform.system() == "Linux":
+            return gw.getAllWindows()
     
     def _update_windows(self):
         """Refresh the windows list"""
@@ -122,9 +143,17 @@ class SelectWindowMenu:
             return
         global selected_window
         selected_window = self.options_dict[self.variable.get()]
-        print(f"Selected window: {selected_window.title}")
+        # print(f"Selected window: {selected_window.title}")
         global key_bind_manager
         key_bind_manager.window = selected_window
+        self._on_selection_change()
+    
+    def _on_selection_change(self):
+        global start_stop
+        if self.variable.get() not in self.options_dict:
+            start_stop.button.config(state=DISABLED)
+        else:
+            start_stop.button.config(state=NORMAL)
 
 
 class StartStopButton:
@@ -132,7 +161,7 @@ class StartStopButton:
         self.master = master
         self.variable = StringVar(master)
         self.variable.set(status)
-        self.button = Button(master, textvariable=self.variable, command=self._toggle, width=30)
+        self.button = Button(master, textvariable=self.variable, command=self._toggle, width=30, state=DISABLED)
         self.button.pack(pady=10)
         self.is_running = False
 
@@ -325,7 +354,11 @@ icon = ImageTk.PhotoImage(icon)
 root.iconphoto(False, icon)
 
 window = SelectWindowMenu(master=root, status="Select the game window")
+button = Button(root, text="Left", command=lambda: key_bind_manager._execute_command("Left"), width=30)
+button.pack(pady=10)
 start_stop = StartStopButton(master=root, status="Start")
 key_rebinds = RebindsListGUI(master=root, status="Configure rebinds")
 
 root.mainloop()
+
+
