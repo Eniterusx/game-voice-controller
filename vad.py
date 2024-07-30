@@ -70,6 +70,7 @@ class VADModel:
         self.vad_aggressiveness = 2
         self.tau = 3
         self.model_path = "model.pth"
+        self.device_id = None
 
         self.callback = callback
 

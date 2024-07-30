@@ -11,6 +11,7 @@ from PIL import ImageTk, Image
 from vad import VADModel
 
 import platform
+import os
 
 import pyautogui as pg
 if platform.system() == "Windows":
@@ -22,7 +23,8 @@ else:
 
 available_keys = ["<None>", 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K',
                   'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X',
-                  'Y', 'Z', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0'] # Can add more keys if needed
+                  'Y', 'Z', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0',
+                  'LMB', 'RMB'] # Can add more keys if needed
 
 available_commands = ["Left", "Right", "Up", "Down", "Go", "Stop", "On",
                       "Off", "Yes", "No", "Zero", "One", "Two", "Three",
@@ -48,7 +50,7 @@ class KeyBindManager:
             # print(f"Keybind removed: {key} -> {command}")
 
     def _execute_command(self, command):
-        # print(f"Voice command detected: {command}")
+        print(f"Voice command detected: {command}")
         for key, cmd in self.keybinds:
             if cmd.lower() == command.lower():
                 self._execute_keybind(key, command)
@@ -69,8 +71,19 @@ class KeyBindManager:
             if not win.isActive:
                 warnings.warn("WARNING\nCould not activate the window")
             if win.isActive:
-                pg.hotkey(key.lower())
-                # print(f"Keybind executed: {key} -> {command}")
+                if key == "LMB":
+                    pg.mouseDown(button='left')
+                    time.sleep(0.05)
+                    pg.mouseUp(button='left')
+                elif key == "RMB":
+                    pg.mouseDown(button='right')
+                    time.sleep(0.05)
+                    pg.mouseUp(button='right')
+                else:
+                    pg.keyDown(key.lower())
+                    time.sleep(0.05)
+                    pg.keyUp(key.lower())
+                print(f"Keybind executed: {key} -> {command}")
         except IndexError:
             print(f"Window titled: '{self.window} not found.")
         except Exception as e:
@@ -78,7 +91,12 @@ class KeyBindManager:
 
     def vad_listener(self):
         global start_stop
-        with sd.InputStream(channels=1, samplerate=self.model.sample_rate, dtype='int16', blocksize=self.model.chunk_length, callback=self.model.audio_callback):
+        with sd.InputStream(channels=1,
+                            samplerate=self.model.sample_rate,
+                            dtype='int16',
+                            device=self.model.device_id,
+                            blocksize=self.model.chunk_length,
+                            callback=self.model.audio_callback):
             print("Listening for voice commands...")
             while start_stop.is_running:
                 sd.sleep(1000)
@@ -155,6 +173,52 @@ class SelectWindowMenu:
         else:
             start_stop.button.config(state=NORMAL)
 
+class SelectDeviceMenu:
+    def __init__(self, master, status):
+        self.master = master
+        self.options_dict = self._get_devices()
+        self.variable = StringVar(master)
+        self.variable.set(status)
+        self.img = self._get_icon("resources/dropdown.png")
+        self.menu = self._configure_menu(master)
+        self._update_devices()
+
+    def _get_icon(self, path):
+        img = Image.open(path).convert("RGBA")
+        img = img.resize((13, 15))
+        img = ImageTk.PhotoImage(img)
+        return img
+
+    def _configure_menu(self, master):
+        menu = OptionMenu(master, self.variable, *self.options_dict.keys(), command=self._select_device)
+        menu.config(indicatoron=0, image=self.img, compound=RIGHT, width=300, height=20)
+        menu.pack(pady=10)
+        return menu
+    
+    def _get_devices(self): 
+        devices = sd.query_devices()
+        input_devices = {
+            f"{device['name']} ({device['hostapi']})": device
+            for device in devices
+            if device['max_input_channels'] > 0 and device['default_samplerate'] > 0
+        }
+        # add a "Default" device, give it index of None, put it at the top of the list
+        input_devices = {"Default device": {"index": None, "name": "Default"}, **input_devices}
+        return input_devices
+    
+    def _update_devices(self):
+        self.options_dict = self._get_devices()
+        menu = self.menu["menu"]
+        menu.delete(0, "end")
+        for option in self.options_dict.keys():
+            menu.add_command(label=option, command=tk._setit(self.variable, option, self._select_device))
+
+    def _select_device(self, _):
+        if self.variable.get() not in self.options_dict:
+            return
+        device = self.options_dict[self.variable.get()]
+        global key_bind_manager
+        key_bind_manager.model.device_id = device['index']
 
 class StartStopButton:
     def __init__(self, master, status):
@@ -345,17 +409,17 @@ selected_window = None
 key_bind_manager = KeyBindManager(None)
 
 root = Tk()
-root.title("Voice commands to keybinds")
+root.title("Voice to keybinds")
 root.geometry("400x550")
 root.resizable(False, False)
 
-icon = Image.open("resources/blahaj.png")
-icon = ImageTk.PhotoImage(icon)
-root.iconphoto(False, icon)
+if os.path.exists("resources/blahaj.png"):
+    icon = Image.open("resources/blahaj.png")
+    icon = ImageTk.PhotoImage(icon)
+    root.iconphoto(False, icon)
 
 window = SelectWindowMenu(master=root, status="Select the game window")
-button = Button(root, text="Left", command=lambda: key_bind_manager._execute_command("Left"), width=30)
-button.pack(pady=10)
+device_id = SelectDeviceMenu(master=root, status="Select the input device")
 start_stop = StartStopButton(master=root, status="Start")
 key_rebinds = RebindsListGUI(master=root, status="Configure rebinds")
 
