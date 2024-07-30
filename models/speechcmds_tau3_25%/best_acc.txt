@@ -1,0 +1,6 @@
+Best acc: 96.131
+Test acc: 94.841
+Precision: 0.949
+Recall: 0.957
+F1 score: 0.953
+Train commands: ['_silence_', '_unknown_', 'down', 'go', 'left', 'no', 'off', 'on', 'right', 'stop', 'up', 'yes', 'zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine']
