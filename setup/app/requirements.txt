@@ -1,0 +1,4 @@
+pywinctl
+pyautogui
+sounddevice
+webrtcvad
