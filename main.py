@@ -19,7 +19,7 @@ from torchvision import transforms
 from tqdm import tqdm
 
 from bcresnet import BCResNets
-from utils import DownloadDataset, Padding, Preprocess, SpeechCommand, SplitDataset, FineTuneSplit
+from utils import DownloadDataset, Padding, Preprocess, SpeechCommand, SplitDataset, FineTuneSplit, GenerateEmbeddings
 from graphing_utils import VisualizeConfusionMatrix
 
 class Trainer:
@@ -64,6 +64,12 @@ class Trainer:
 
         Trains the model and presents the train/test progress.
         """
+        # if the model is already trained, skip training and go to fine-tuning
+        if self.load_model is not None and len(self.load_model) > 0:
+            print("Model loaded, skipping training.")
+            self.FineTune()
+            return
+
         # train hyperparameters
         total_epoch = self.epochs
         warmup_epoch = self.warmup_epoch
@@ -138,6 +144,7 @@ class Trainer:
     def FineTune(self):
         # freeze all layers except the last fc layer
         # change the last fc layer to have as many output classes as self.finetune_dict
+        # generate embeddings for the finetune datasets
         self._fine_tune()
 
         # train hyperparameters
@@ -176,8 +183,8 @@ class Trainer:
                 inputs, labels = sample
                 inputs = inputs.to(self.device)
                 labels = labels.to(self.device)
-                inputs = self.preprocess_train(inputs, labels, augment=True)
-                outputs = self.model(inputs)
+                inputs = inputs.squeeze(1)
+                outputs = self.model.classify(inputs)
                 loss = F.cross_entropy(outputs, labels)
                 loss.backward()
                 optimizer.step()
@@ -187,7 +194,7 @@ class Trainer:
             print("cur lr check ... %.4f" % lr)
             with torch.no_grad():
                 self.model.eval()
-                valid_acc = self.Test(self.finetune_valid_dataset, self.finetune_valid_loader, augment=True)
+                valid_acc = self.Test(self.finetune_valid_dataset, self.finetune_valid_loader, augment=True, finetune=True)
                 print("valid acc: %.3f" % (valid_acc))
                 if valid_acc >= best_acc:
                     best_acc = valid_acc
@@ -234,8 +241,12 @@ class Trainer:
         for inputs, labels in loader:
             inputs = inputs.to(self.device)
             labels = labels.to(self.device)
-            inputs = self.preprocess_test(inputs, labels=labels, is_train=False, augment=augment)
-            outputs = self.model(inputs)
+            if not finetune:
+                inputs = self.preprocess_test(inputs, labels=labels, is_train=False, augment=augment)
+                outputs = self.model(inputs)
+            else:
+                inputs = inputs.squeeze(1)
+                outputs = self.model.classify(inputs)
             prediction = torch.argmax(outputs, dim=-1)
             true_count += torch.sum(prediction == labels).detach().cpu().numpy()
             if calc_confusion_matrix:
@@ -406,13 +417,13 @@ class Trainer:
         self.test_loader = DataLoader(self.test_dataset, batch_size=self.batch_size, num_workers=0)
 
         self.finetune_train_dataset = SpeechCommand(finetune_train, transform)
-        self.finetune_train_loader = DataLoader(
-            self.finetune_train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=0, drop_last=False
-        )
+        # self.finetune_train_loader = DataLoader(
+            # self.finetune_train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=0, drop_last=False
+        # )
         self.finetune_valid_dataset = SpeechCommand(finetune_valid, transform)
-        self.finetune_valid_loader = DataLoader(self.finetune_valid_dataset, batch_size=self.batch_size, num_workers=0)
+        # self.finetune_valid_loader = DataLoader(self.finetune_valid_dataset, batch_size=self.batch_size, num_workers=0)
         self.finetune_test_dataset = SpeechCommand(finetune_test, transform)
-        self.finetune_test_loader = DataLoader(self.finetune_test_dataset, batch_size=self.batch_size, num_workers=0)
+        # self.finetune_test_loader = DataLoader(self.finetune_test_dataset, batch_size=self.batch_size, num_workers=0)
 
         print(
             "check num of data in pretrain train/valid/test %d/%d/%d"
@@ -453,12 +464,22 @@ class Trainer:
             param.requires_grad = True
         self.model = self.model.to(self.device)
 
+        # pass the finetune datasets through the preprocessors, returns embeddings
+        self.finetune_train_dataset = GenerateEmbeddings(self.model, self.finetune_train_dataset, self.device, self.preprocess_train)
+        self.finetune_valid_dataset = GenerateEmbeddings(self.model, self.finetune_valid_dataset, self.device, self.preprocess_test)
+        self.finetune_test_dataset = GenerateEmbeddings(self.model, self.finetune_test_dataset, self.device, self.preprocess_test)
+        self.finetune_train_loader = DataLoader(self.finetune_train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=0, drop_last=False)
+        self.finetune_valid_loader = DataLoader(self.finetune_valid_dataset, batch_size=self.batch_size, num_workers=0)
+        self.finetune_test_loader = DataLoader(self.finetune_test_dataset, batch_size=self.batch_size, num_workers=0)
+
     def _load_model(self):
         """
         Private method that loads the model into the object.
         """
         print("model: BC-ResNet-%.1f on data v0.0%d" % (self.tau, self.ver))
         self.model = BCResNets(int(self.tau * 8)).to(self.device)
+        if self.load_model is not None and len(self.load_model) > 0:
+            self.model.load_state_dict(torch.load(self.load_model, map_location=self.device))
 
 
 if __name__ == "__main__":

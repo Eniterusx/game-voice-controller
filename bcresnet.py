@@ -185,6 +185,18 @@ class BCResNets(nn.Module):
             nn.Conv2d(self.c[-1], self.num_classes, 1),
         )
 
+    def generate_embedding(self, x):
+        x = self.cnn_head(x)
+        for i, num_modules in enumerate(self.n):
+            for j in range(num_modules):
+                x = self.BCBlocks[i][j](x)
+        return x
+
+    def classify(self, x):
+        x = self.classifier(x)
+        x = x.view(-1, x.shape[1])
+        return x
+    
     def forward(self, x):
         x = self.cnn_head(x)
         for i, num_modules in enumerate(self.n):
