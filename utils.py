@@ -51,7 +51,7 @@ def SplitCommands(seed=42):
     '''
     random.seed(seed)
 
-    pretrain_commands = 15
+    pretrain_commands = 17
     commands = [x for x in label_dict.keys() if x not in ("_silence_", "_unknown_")]
     random.shuffle(commands)
 
@@ -195,8 +195,22 @@ def FineTuneSplit(root_dir, seed=42, percentage=1.0):
     finetune_data = {"train": finetune_train, "valid": finetune_eval, "test": finetune_test}
     return pretrain_data, pretrain_dict, finetune_data, finetune_dict
 
+
+def GenerateEmbeddings(model, dataset, device, preprocess):
+    # Generate embeddings for the data and return them
+    embeddings = []
+    print("Generating embeddings...")
+    for i in tqdm(range(len(dataset))):
+        sample, label = dataset[i]
+        sample = sample.to(device)
+        sample = sample.unsqueeze(0)
+        sample = preprocess(sample, None, augment=False)
+        sample = model.generate_embedding(sample)
+        embeddings.append((sample, label))
+    return EmbeddingDataset(embeddings)
+
 class SpeechCommand(Dataset):
-    def __init__(self, data, transform=None):
+    def __init__(self, data, transform=None):       
         self.transform = transform
         self.data_list, self.labels = zip(*data)
 
@@ -210,6 +224,16 @@ class SpeechCommand(Dataset):
             sample = self.transform(sample)
         label = self.labels[idx]
         return sample, label
+    
+class EmbeddingDataset(Dataset):
+    def __init__(self, data):
+        self.data_list, self.labels = zip(*data)
+
+    def __len__(self):
+        return len(self.labels)
+
+    def __getitem__(self, idx):
+        return self.data_list[idx], self.labels[idx]
 
 def spec_augment(
     x, frequency_masking_para=20, time_masking_para=20, frequency_mask_num=2, time_mask_num=2
