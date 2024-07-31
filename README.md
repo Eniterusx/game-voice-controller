@@ -125,6 +125,10 @@ Najważniejszym parametrem modelu jest parametr tau, który określa, jak złoż
 
 Wszystkie eksperymenty (chyba, że zaznaczono inaczej), zostały przeprowadzone na parametrze tau równym 3. Parametr ten został dobrany z myślą o zbalansowaniu dokładności modelu i złożoności obliczeniowej.
 
+| Rozpoznawanie słów kluczowych z mowy ciągłej |
+| :------------------------------------------: |
+|       ![KWS](./resources/vad_demo.gif)       |
+
 Model został przetestowany na zbiorze danych Google Speech Commands Dataset v0.02 oraz na własnym zbiorze danych. Dokładne konfiguracje użyte podczas każdego z eksperymentów są dostępne w katalogu `models`. Poniżej przedstawione są wyniki eksperymentów.
 ### Zbiór danych Google Speech Commands Dataset v0.02
 | Liczba komend na klasę (% komend) | Accuracy | Precision | Recall | F1-score |
