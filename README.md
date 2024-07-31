@@ -23,7 +23,7 @@
 ## Opis projektu
 Celem projektu jest stworzenie systemu, który pozwala na sterowanie grami za pomocą komend głosowych. Działanie systemu polega na rozpoznawaniu komend głosowych, a następnie mapowaniu ich na odpowiednie klawisze klawiatury. Na przykład, jeśli użytkownik wypowie słowo *Yes*, to system powinien wysłać do gry sygnał równoważny z naciśnięciem klawisza *enter*. Program rozpoznaje komendy w języku angielskim.
 
-W celu rozpoznawania komend głosowych wykorzystany został model Keyword Spotting (KWS), który jest w stanie w czasie rzeczywistym rozpoznawać predefiniowane komendy głosowe. W projekcie wykorzystano model Broadcasted Residual Learning (BCResNet), który jest w stanie rozpoznać komendy z dokładnością na poziomie 96.840% dla zbioru danych Google Speech Commands Dataset v0.02. Aby zredukować ilość wykonywanych obliczeń, model wykorzystuje Voice Activity Detection (VAD), który pozwala na rozpoznawanie komend tylko wtedy, gdy użytkownik mówi.
+W celu rozpoznawania komend głosowych wykorzystany został model Keyword Spotting (KWS), który jest w stanie w czasie rzeczywistym rozpoznawać predefiniowane komendy głosowe. W projekcie wykorzystano model Broadcasted Residual Learning (BCResNet), który jest w stanie rozpoznać komendy z dokładnością na poziomie 96.840% dla zbioru danych Google Speech Commands Dataset v0.02. Model był uczony na 1500 nagraniach dla każdej komendy. Aby zredukować ilość wykonywanych obliczeń, model wykorzystuje Voice Activity Detection (VAD), który pozwala na rozpoznawanie komend tylko wtedy, gdy użytkownik mówi.
 
 Oprócz tego przeprowadzone zostały eksperymenty testujące możliwości modelu, w szczególności przetestowanie modelu na własnym zbiorze danych, który zawiera 10 nagrań dla każdej z 20 komend oraz 150 nagrań dla klasy `_unknown_`. Model osiągnął dokładność na poziomie 97.222% dla jednego z eksperymentów.
 
@@ -123,7 +123,9 @@ Wersja 2: [[Train]](http://download.tensorflow.org/data/speech_commands_v0.02.ta
 ## Rezultaty
 Najważniejszym parametrem modelu jest parametr tau, który określa, jak złożony jest model. Im większa wartość tau, tym więcej neuronów przypada na każdą warstwę konwolucyjną, oraz więcej jest warstw konwolucyjnych.
 
-Wszystkie eksperymenty (chyba, że zaznaczono inaczej), zostały przeprowadzone na parametrze tau równym 3. Parametr ten został dobrany z myślą o zbalansowaniu dokładności modelu i złożoności obliczeniowej.
+Wszystkie eksperymenty, zostały przeprowadzone na parametrze tau równym 3. Parametr ten został dobrany z myślą o zbalansowaniu dokładności modelu i złożoności obliczeniowej.
+
+Przyjęty przeze mnie podział zbioru danych na dane treningowe, walidacyjne oraz testowe wynosił odpowiednio 60%, 20% oraz 20%.
 
 | Rozpoznawanie słów kluczowych z mowy ciągłej |
 | :------------------------------------------: |
