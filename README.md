@@ -76,11 +76,8 @@ Program pozwala na sterowanie grami za pomocą komend głosowych. Użytkownik mo
 
 Działanie programu zostało przedstawione na podstawie minigry Mahjong w grze Yakuza 0. W filmie zostały użyte komendy: *Yes*, *No*, *Up*, *Down*, *Left*, *Right*, *Zero*, *One*.
 
-<!-- insert video from resources -->
-<video width="600" controls>
-  <source src="resources/example.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
+<!-- insert video from yt link -->
+[![Watch the video](https://img.youtube.com/vi/eIl2WNhYdfk/0.jpg)](https://youtu.be/eIl2WNhYdfk)
 
 ## Instalacja modelu
 ### Linux
