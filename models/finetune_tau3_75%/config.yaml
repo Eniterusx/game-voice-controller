@@ -1,0 +1,32 @@
+# percentage of data to use
+percentage: 75
+
+# model version
+tau: 3
+# Google Speech Command dataset version
+ver: 2
+# gpu device id
+gpu: 0
+
+# output folder
+output: 'models/finetune_tau3_75%'
+
+# Fine-tuning parameters
+# use fine_tuning version
+fine_tune: True
+# can be omitted if fine_tune is False
+fine_tune_epochs: 100
+# load model from this path (will skip the training phase), if empty will train from scratch
+load_model: 'models/finetune_tau3_100%/model_best.pth'
+
+# model parameters
+epochs: 150
+init_lr: 0.1
+lr_lower_limit: 0
+warmup_epoch: 5
+batch_size: 100
+# optimizer parameters
+weight_decay: 0.001
+momentum: 0.9
+
+seed: 42

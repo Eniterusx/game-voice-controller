@@ -2,23 +2,25 @@
 percentage: 100
 
 # model version
-tau: 1.5
+tau: 3
+# Google Speech Command dataset version
+ver: 2
 # gpu device id
 gpu: 0
 
 # output folder
-output: 'models/mycmds_tau1.5'
+output: 'models/finetune_tau3_50%'
 
 # Fine-tuning parameters
 # use fine_tuning version
-fine_tune: False
+fine_tune: True
 # can be omitted if fine_tune is False
-fine_tune_epochs: 0
+fine_tune_epochs: 100
 # load model from this path (will skip the training phase), if empty will train from scratch
 load_model: ''
 
 # model parameters
-epochs: 500
+epochs: 150
 init_lr: 0.1
 lr_lower_limit: 0
 warmup_epoch: 5

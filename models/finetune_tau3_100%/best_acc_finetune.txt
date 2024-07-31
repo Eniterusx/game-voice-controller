@@ -1,0 +1,6 @@
+Best acc: 98.526
+Test acc: 98.480
+Precision: 0.975
+Recall: 0.927
+F1 score: 0.950
+Fine tune commands: ['_silence_', '_unknown_', 'up', 'down', 'no']
