@@ -155,7 +155,7 @@ Model osiągnął accuracy na poziomie 94.444% dla jednego z eksperymentów. Pon
 Eksperymenty przeprowadzone na własnym zbiorze danych nie przyniosły zadowalających rezultatów. Model stosunkowo często myli podobne słowa. Chociaż accuracy jest większe niż 90%, to podczas testów na strumieniu audio model miał trudność z rozpoznawaniem komend, często myląc je ze sobą lub nie rozpoznając ich wcale.
 
 ### Fine-tuning
-W celu sprawdzenia, czy model będzie w stanie nauczyć się nowych komend, przeprowadziłem eksperyment fine-tuningu. W tym eksperymencie podzieliłem zbiór danych na dane uczenia wstępnego oraz dane fine-tuningu. Dane uczenia wstępnego zawierały 17 komend, a dane fine-tuningu zawierały 3 nowe komendy. Model został wytrenowany na danych uczenia wstępnego, następnie wszystkie warstwy konwolucyjne zostały zamrożone, a model został wytrenowany na danych fine-tuningu.
+W celu sprawdzenia, czy model będzie w stanie nauczyć się nowych komend, przeprowadziłem eksperyment fine-tuningu. W tym eksperymencie podzieliłem zbiór danych Google Speech Commands Dataset v0.02 na dane uczenia wstępnego oraz dane fine-tuningu. Dane uczenia wstępnego zawierały 17 komend, a dane fine-tuningu zawierały 3 nowe komendy. Model został wytrenowany na danych uczenia wstępnego, następnie wszystkie warstwy konwolucyjne zostały zamrożone, a model został wytrenowany na danych fine-tuningu.
 
 Celem eksperymentu było sprawdzenie, czy model jest w stanie nauczyć się nowych komend i jeśli tak, to ile plików audio jest potrzebnych, aby model osiągnął zadowalające wyniki.
 | Liczba komend na klasę (% komend) | Accuracy | Precision | Recall | F1-score |
